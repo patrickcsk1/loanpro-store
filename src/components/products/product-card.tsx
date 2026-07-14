@@ -60,11 +60,22 @@ function QuantityStepper({
 }
 
 export function ProductCard({ product }: { product: Product }) {
-  const { items, addItem, setQuantity } = useCart();
+  const { items, addItem, setQuantity, reconcileItem } = useCart();
   const { toast } = useToast();
   const outOfStock = product.stock <= 0;
   const inCart = items.find((entry) => entry.productId === product.id);
+  const isInCart = Boolean(inCart);
   const [pendingQty, setPendingQty] = React.useState(1);
+
+  React.useEffect(() => {
+    if (!isInCart) return;
+    reconcileItem(product.id, {
+      name: product.name,
+      sku: product.sku,
+      priceCents: product.priceCents,
+      stock: product.stock,
+    });
+  }, [isInCart, product.id, product.name, product.sku, product.priceCents, product.stock, reconcileItem]);
 
   const handleAdd = () => {
     addItem(
@@ -157,6 +168,9 @@ export function ProductCard({ product }: { product: Product }) {
             </Button>
           </div>
         )}
+        {!outOfStock && (inCart ? inCart.quantity >= product.stock : pendingQty >= product.stock) ? (
+          <p className="text-center text-xs text-muted-foreground">Max available: {product.stock}</p>
+        ) : null}
         <div className="flex w-full gap-2">
           <ProductFormDialog
             product={product}

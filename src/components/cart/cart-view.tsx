@@ -2,11 +2,12 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { CheckCircle2, Loader2, Minus, Plus, ShoppingBag, Trash2 } from "lucide-react";
-import { useMutation } from "@tanstack/react-query";
+import { CheckCircle2, Info, Loader2, Minus, Plus, ShoppingBag, Trash2 } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { formatCents } from "@/lib/money";
-import { ApiError, checkout } from "@/components/store/api";
+import { ApiError, checkout, fetchProduct } from "@/components/store/api";
 import { useCart } from "@/components/store/cart-context";
+import { productKeys } from "@/components/store/queries";
 import type { CheckoutResult } from "@/components/store/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -50,9 +51,53 @@ function QuantityStepper({
 }
 
 export function CartView() {
-  const { items, totalCents, setQuantity, removeItem, clear } = useCart();
+  const { items, totalCents, setQuantity, removeItem, reconcileItem, clear } = useCart();
+  const queryClient = useQueryClient();
   const [confirmation, setConfirmation] = React.useState<CheckoutResult | null>(null);
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
+  const [notices, setNotices] = React.useState<string[]>([]);
+  const reconciled = React.useRef(false);
+
+  React.useEffect(() => {
+    if (reconciled.current || items.length === 0) return;
+    reconciled.current = true;
+    const snapshot = items;
+
+    void Promise.all(
+      snapshot.map(async (item) => {
+        try {
+          const live = await fetchProduct(item.productId);
+          const changes: string[] = [];
+          if (live.stock <= 0) {
+            reconcileItem(item.productId, null);
+            return `${item.name} is out of stock and was removed from your cart.`;
+          }
+          if (live.priceCents !== item.priceCents) {
+            changes.push(`price is now ${formatCents(live.priceCents)}`);
+          }
+          if (live.stock < item.quantity) {
+            changes.push(`quantity reduced to ${live.stock} (only ${live.stock} in stock)`);
+          }
+          reconcileItem(item.productId, {
+            name: live.name,
+            sku: live.sku,
+            priceCents: live.priceCents,
+            stock: live.stock,
+          });
+          return changes.length ? `${live.name}: ${changes.join(", ")}.` : null;
+        } catch (error) {
+          if (error instanceof ApiError && error.status === 404) {
+            reconcileItem(item.productId, null);
+            return `${item.name} is no longer available and was removed from your cart.`;
+          }
+          return null;
+        }
+      }),
+    ).then((results) => {
+      const messages = results.filter((message): message is string => Boolean(message));
+      if (messages.length) setNotices(messages);
+    });
+  }, [items, reconcileItem]);
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -60,7 +105,9 @@ export function CartView() {
     onSuccess: (result) => {
       setConfirmation(result);
       setErrorMessage(null);
+      setNotices([]);
       clear();
+      queryClient.invalidateQueries({ queryKey: productKeys.all });
     },
     onError: (error) => {
       if (error instanceof ApiError) {
@@ -71,6 +118,17 @@ export function CartView() {
           setErrorMessage(
             affected
               ? `Not enough stock for ${affected.name}. Only ${available ?? "0"} left — reduce the quantity and try again.`
+              : error.message,
+          );
+          return;
+        }
+        if (error.code === "PRODUCT_NOT_FOUND") {
+          const productId = error.fields?.productId?.[0];
+          const affected = items.find((item) => item.productId === productId);
+          if (affected) reconcileItem(affected.productId, null);
+          setErrorMessage(
+            affected
+              ? `${affected.name} is no longer available and was removed. Please review your cart and try again.`
               : error.message,
           );
           return;
@@ -138,6 +196,20 @@ export function CartView() {
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 sm:py-12">
       <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">Your cart</h1>
 
+      {notices.length > 0 ? (
+        <div className="mt-6 space-y-2 rounded-2xl border border-accent/30 bg-accent/10 p-4">
+          <div className="flex items-center gap-2 text-sm font-semibold text-accent">
+            <Info className="size-4" />
+            Your cart was updated to match current availability
+          </div>
+          <ul className="ml-6 list-disc space-y-1 text-sm text-muted-foreground">
+            {notices.map((notice, index) => (
+              <li key={index}>{notice}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_20rem]">
         <div className="space-y-4">
           {items.map((item) => (
@@ -149,11 +221,16 @@ export function CartView() {
                   <p className="text-sm text-muted-foreground">{formatCents(item.priceCents)} each</p>
                 </div>
                 <div className="flex items-center justify-between gap-4 sm:justify-end">
-                  <QuantityStepper
-                    value={item.quantity}
-                    max={item.maxStock}
-                    onChange={(next) => setQuantity(item.productId, next)}
-                  />
+                  <div className="flex flex-col items-center gap-1">
+                    <QuantityStepper
+                      value={item.quantity}
+                      max={item.maxStock}
+                      onChange={(next) => setQuantity(item.productId, next)}
+                    />
+                    {item.quantity >= item.maxStock ? (
+                      <span className="text-[11px] text-muted-foreground">Max in stock</span>
+                    ) : null}
+                  </div>
                   <p className="w-24 text-right font-bold tabular-nums">
                     {formatCents(item.priceCents * item.quantity)}
                   </p>

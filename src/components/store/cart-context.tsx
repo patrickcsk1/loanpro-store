@@ -11,6 +11,13 @@ export type CartItem = {
   maxStock: number;
 };
 
+export type LiveProduct = {
+  name: string;
+  sku: string;
+  priceCents: number;
+  stock: number;
+};
+
 type CartContextValue = {
   items: CartItem[];
   itemCount: number;
@@ -18,6 +25,7 @@ type CartContextValue = {
   addItem: (item: Omit<CartItem, "quantity">, quantity?: number) => void;
   setQuantity: (productId: string, quantity: number) => void;
   removeItem: (productId: string) => void;
+  reconcileItem: (productId: string, live: LiveProduct | null) => void;
   clear: () => void;
 };
 
@@ -99,14 +107,45 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setItems((current) => current.filter((entry) => entry.productId !== productId));
   }, []);
 
+  const reconcileItem = React.useCallback((productId: string, live: LiveProduct | null) => {
+    setItems((current) => {
+      const index = current.findIndex((entry) => entry.productId === productId);
+      if (index === -1) return current;
+      if (!live || live.stock <= 0) return current.filter((entry) => entry.productId !== productId);
+
+      const entry = current[index];
+      const quantity = clampQuantity(entry.quantity, live.stock);
+      if (
+        entry.name === live.name &&
+        entry.sku === live.sku &&
+        entry.priceCents === live.priceCents &&
+        entry.maxStock === live.stock &&
+        entry.quantity === quantity
+      ) {
+        return current;
+      }
+
+      const next = [...current];
+      next[index] = {
+        ...entry,
+        name: live.name,
+        sku: live.sku,
+        priceCents: live.priceCents,
+        maxStock: live.stock,
+        quantity,
+      };
+      return next;
+    });
+  }, []);
+
   const clear = React.useCallback(() => setItems([]), []);
 
   const itemCount = items.reduce((sum, entry) => sum + entry.quantity, 0);
   const totalCents = items.reduce((sum, entry) => sum + entry.priceCents * entry.quantity, 0);
 
   const value = React.useMemo<CartContextValue>(
-    () => ({ items, itemCount, totalCents, addItem, setQuantity, removeItem, clear }),
-    [items, itemCount, totalCents, addItem, setQuantity, removeItem, clear],
+    () => ({ items, itemCount, totalCents, addItem, setQuantity, removeItem, reconcileItem, clear }),
+    [items, itemCount, totalCents, addItem, setQuantity, removeItem, reconcileItem, clear],
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
