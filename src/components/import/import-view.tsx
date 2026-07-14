@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, FileSpreadsheet, Loader2, UploadCloud, X } from "lucide-react";
+import { AlertCircle, Download, FileSpreadsheet, Loader2, UploadCloud, X } from "lucide-react";
 import { ApiError, importProducts } from "@/components/store/api";
 import { productKeys } from "@/components/store/queries";
 import type { ImportReport } from "@/components/store/types";
@@ -38,11 +38,33 @@ function statusVariant(status: string) {
       return "accent" as const;
     case "invalid":
       return "destructive" as const;
-    case "overwritten":
-      return "warning" as const;
     default:
       return "secondary" as const;
   }
+}
+
+const TEMPLATE_COLUMNS: Array<{ name: string; required: boolean; note: string }> = [
+  { name: "name", required: true, note: "Product name" },
+  { name: "sku", required: true, note: "Unique code; a matching SKU updates that product" },
+  { name: "description", required: false, note: "Free text" },
+  { name: "category", required: false, note: "Defaults to Uncategorized" },
+  { name: "price", required: true, note: "e.g. 49.99 — $ and “free” are accepted" },
+  { name: "stock", required: false, note: "Whole number; defaults to 0" },
+  { name: "weight_kg", required: false, note: "Decimal; defaults to 0" },
+];
+
+function downloadTemplate() {
+  const header = TEMPLATE_COLUMNS.map((column) => column.name).join(",");
+  const sample = "Wireless Keyboard,KB-1001,Compact mechanical keyboard,Peripherals,49.99,25,0.8";
+  const blob = new Blob([`${header}\n${sample}\n`], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "product-import-template.csv";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 export function ImportView() {
@@ -84,14 +106,52 @@ export function ImportView() {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 sm:py-12">
-      <div className="space-y-2">
-        <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">Bulk import</h1>
-        <p className="text-muted-foreground">
-          Upload a CSV to create or update products. Existing SKUs are updated; new SKUs are created.
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">Bulk import</h1>
+          <p className="text-muted-foreground">
+            Upload a CSV to create or update products. Existing SKUs are updated; new SKUs are created.
+          </p>
+        </div>
+        <Button variant="outline" onClick={downloadTemplate}>
+          <Download className="size-4" />
+          Download template
+        </Button>
       </div>
 
-      <Card className="mt-8">
+      <Card className="mt-6">
+        <CardContent className="p-6">
+          <div className="flex items-start gap-3">
+            <FileSpreadsheet className="mt-0.5 size-5 shrink-0 text-primary" />
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <p className="font-semibold">Expected columns</p>
+                <p className="text-sm text-muted-foreground">
+                  Download the template, fill in your products, and upload it back. Column order does not matter, but the
+                  header names must match.
+                </p>
+              </div>
+              <ul className="grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
+                {TEMPLATE_COLUMNS.map((column) => (
+                  <li key={column.name} className="flex items-baseline gap-2 text-sm">
+                    <code className="font-mono font-semibold text-foreground">{column.name}</code>
+                    {column.required ? (
+                      <Badge variant="secondary" className="px-1.5 py-0 text-[10px] uppercase">
+                        Required
+                      </Badge>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">optional</span>
+                    )}
+                    <span className="text-xs text-muted-foreground">— {column.note}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="mt-6">
         <CardContent className="p-6">
           <div
             role="button"
