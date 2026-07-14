@@ -1,0 +1,16 @@
+node_modules
+.next
+out
+build
+.env
+.env*.local
+*.tsbuildinfo
+next-env.d.ts
+npm-debug.log*
+.DS_Store
+coverage
+
+# Challenge source artifacts (kept locally, not part of the solution)
+*.pdf
+*.gsheet
+/LoanPro Code Challenge E-Commerce - LoanPro Code Challenge E-Commerce.csv
