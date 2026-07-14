@@ -25,12 +25,14 @@ function QuantityStepper({
   max,
   onChange,
   label,
+  maxTitle,
 }: {
   value: number;
   min: number;
   max: number;
   onChange: (next: number) => void;
   label: string;
+  maxTitle?: string;
 }) {
   return (
     <div className="flex items-center rounded-full border border-border bg-background" role="group" aria-label={label}>
@@ -51,6 +53,7 @@ function QuantityStepper({
         onClick={() => onChange(value + 1)}
         disabled={value >= max}
         aria-label="Increase quantity"
+        title={value >= max ? maxTitle : undefined}
         className="grid size-9 place-items-center rounded-full text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
       >
         <Plus className="size-4" />
@@ -140,7 +143,7 @@ export function ProductCard({ product }: { product: Product }) {
             Out of stock
           </Button>
         ) : inCart ? (
-          <div className="flex w-full items-center justify-between gap-2 rounded-full bg-primary/10 px-3 py-1.5">
+          <div className="flex h-11 w-full items-center justify-between gap-2 rounded-full bg-primary/10 px-3">
             <span className="flex items-center gap-1.5 text-sm font-semibold text-primary">
               <Check className="size-4" />
               In cart
@@ -151,6 +154,7 @@ export function ProductCard({ product }: { product: Product }) {
               max={product.stock}
               onChange={(next) => setQuantity(product.id, next)}
               label={`Quantity of ${product.name} in cart`}
+              maxTitle={`Only ${product.stock} in stock`}
             />
           </div>
         ) : (
@@ -161,6 +165,7 @@ export function ProductCard({ product }: { product: Product }) {
               max={product.stock}
               onChange={setPendingQty}
               label={`Quantity to add for ${product.name}`}
+              maxTitle={`Only ${product.stock} in stock`}
             />
             <Button className="flex-1" onClick={handleAdd}>
               <ShoppingCart className="size-4" />
@@ -168,9 +173,6 @@ export function ProductCard({ product }: { product: Product }) {
             </Button>
           </div>
         )}
-        {!outOfStock && (inCart ? inCart.quantity >= product.stock : pendingQty >= product.stock) ? (
-          <p className="text-center text-xs text-muted-foreground">Max available: {product.stock}</p>
-        ) : null}
         <div className="flex w-full gap-2">
           <ProductFormDialog
             product={product}

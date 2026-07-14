@@ -16,10 +16,12 @@ function QuantityStepper({
   value,
   max,
   onChange,
+  maxTitle,
 }: {
   value: number;
   max: number;
   onChange: (next: number) => void;
+  maxTitle?: string;
 }) {
   return (
     <div className="inline-flex items-center rounded-full border border-border">
@@ -43,6 +45,7 @@ function QuantityStepper({
         aria-label="Increase quantity"
         onClick={() => onChange(value + 1)}
         disabled={value >= max}
+        title={value >= max ? maxTitle : undefined}
       >
         <Plus className="size-4" />
       </Button>
@@ -221,16 +224,12 @@ export function CartView() {
                   <p className="text-sm text-muted-foreground">{formatCents(item.priceCents)} each</p>
                 </div>
                 <div className="flex items-center justify-between gap-4 sm:justify-end">
-                  <div className="flex flex-col items-center gap-1">
-                    <QuantityStepper
-                      value={item.quantity}
-                      max={item.maxStock}
-                      onChange={(next) => setQuantity(item.productId, next)}
-                    />
-                    {item.quantity >= item.maxStock ? (
-                      <span className="text-[11px] text-muted-foreground">Max in stock</span>
-                    ) : null}
-                  </div>
+                  <QuantityStepper
+                    value={item.quantity}
+                    max={item.maxStock}
+                    onChange={(next) => setQuantity(item.productId, next)}
+                    maxTitle={`Only ${item.maxStock} in stock`}
+                  />
                   <p className="w-24 text-right font-bold tabular-nums">
                     {formatCents(item.priceCents * item.quantity)}
                   </p>
